@@ -1,0 +1,11 @@
+Note: to activate / deactivate a py environment:
+
+source py3/bin/activate / deactivate
+
+To build:
+
+python -m build
+
+To push to pip:
+
+twine upload dist/dab_py-0.1.x*
