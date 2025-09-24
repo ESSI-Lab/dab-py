@@ -4,8 +4,12 @@ source py3/bin/activate / deactivate
 
 To build:
 
+pip install build
+
 python -m build
 
 To push to pip:
+
+pip install twine
 
 twine upload dist/dab_py-0.1.x*

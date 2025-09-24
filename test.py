@@ -3,7 +3,7 @@ from dabpy.dab_py import TermsAPI
 
 def main():
     # Blue-Cloud/GeoDAB provided credentials for the public terms view
-    token = "blue-cloud-terms-maris-bv"
+    token = "my-token"
     view = "blue-cloud-terms"
 
     # Desired parameters
