@@ -1,4 +1,4 @@
-from dabpy.dab_py import TermsAPI
+from dabpy import TermsAPI
 
 
 def main():

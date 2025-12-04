@@ -2,20 +2,23 @@ from setuptools import setup, find_packages
 
 setup(
     name="dab_py",
-    version="0.1.0",
+    version="0.2.0",  # bump version for v2
     packages=find_packages(),
     install_requires=[
-        "requests",  # for HTTP requests to the DAB API
+        "requests",
+        "pandas",
+        "matplotlib",
+        "urllib3"  # optional, but usually comes with requests
     ],
     license="GPL-3.0",
-    author="Ahmad Mahmoud (CNR internship)",
-    description="A Python client for interacting with the DAB API.",
+    author="Alun Sagara Putra (CNR Internship)",
+    description="A Python client for DAB Terms API and WHOS API (v2)",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/ESSI-Lab/dab-py/tree/main",
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GPL License",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.7",
