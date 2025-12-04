@@ -1,6 +1,6 @@
 Note: to activate / deactivate a py environment:
 
-source py3/bin/activate / deactivate
+source venv/bin/activate / deactivate
 
 To build:
 
