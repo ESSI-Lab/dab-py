@@ -1,13 +1,9 @@
 import requests
 import pandas as pd
 import urllib.parse
-from datetime import datetime
-import matplotlib.pyplot as plt
 
 def obfuscate_token(url, token):
-    """
-    Replace the token in a URL with '***' for safe printing.
-    """
+    """Replace the token in a URL with '***' for safe printing."""
     return url.replace(token, "***")
 
 class Feature:
@@ -56,8 +52,6 @@ class Observation:
         result_meta = obs_json.get("result", {}).get("defaultPointMetadata", {})
         self.uom = result_meta.get("uom")
         self.interpolation_type = result_meta.get("interpolationType", {}).get("title")
-
-        # <<< ADD THIS LINE >>>
         self.points = obs_json.get("result", {}).get("points", [])
 
     def to_dict(self):
@@ -85,6 +79,7 @@ class WHOSClient:
         self.view = view
         self.base_url = f"https://whos.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
 
+    # --- Retrieve features / observations as objects ---
     def get_features(self, constraints):
         url = self.base_url + "features?" + constraints.to_query()
         print("Retrieving " + obfuscate_token(url, self.token))
@@ -110,7 +105,6 @@ class WHOSClient:
         return [Observation(obs) for obs in data["member"]]
 
     def get_observation_with_data(self, observation_id, begin=None, end=None):
-        """Retrieve a single observation including data points."""
         url = self.base_url + f"observations?includeData=true&observationIdentifier={urllib.parse.quote(observation_id)}"
         if begin:
             url += "&beginPosition=" + urllib.parse.quote(begin)
@@ -121,49 +115,29 @@ class WHOSClient:
         response = requests.get(url)
         if response.status_code != 200:
             raise Exception(f"HTTP GET failed: {response.status_code}")
-
         data = response.json()
         if "member" not in data or not data["member"]:
             return None
-
         return Observation(data["member"][0])
 
-    def plot_observation(self, observation, title=None):
-        """
-        Plot a single Observation object's time series.
-        Parameters:
-            observation (Observation): Observation object
-            title (str, optional): Plot title, defaults to observation.observed_property
-        """
-        if not observation.points:
-            print("No data points available to plot.")
-            return
-
-        times = [
-            datetime.fromisoformat(point['time']['instant'].replace("Z", "+00:00"))
-            for point in observation.points
-        ]
-        values = [point['value'] for point in observation.points]
-
-        plt.figure(figsize=(10, 5))
-        plt.plot(times, values, marker='o', linestyle='-', color='b', label=observation.observed_property)
-        plt.title(title or observation.observed_property)
-        plt.xlabel("Date")
-        plt.ylabel(f"Value ({observation.uom})")
-        plt.grid(True)
-        plt.legend()
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.show()
-
-    # --- DataFrame helpers ---
-    def get_features_df(self, constraints):
-        features = self.get_features(constraints)
+    # --- Convert existing objects to DataFrame without calling API ---
+    def features_to_df(self, features):
         dict_list = [f.to_dict() for f in features]
         return pd.DataFrame(dict_list)
 
-    def get_observations_df(self, feature_id):
-        observations = self.get_observations(feature_id)
+    def observations_to_df(self, observations):
         dict_list = [obs.to_dict() for obs in observations]
         return pd.DataFrame(dict_list)
 
+    def points_to_df(self, observation):
+        """Convert Observation points to a DataFrame with proper Time and Value columns."""
+        if not observation.points:
+            return pd.DataFrame(columns=["Time", "Value"])
+
+        dict_list = []
+        for p in observation.points:
+            time = p.get("time", {}).get("instant")  # Extract 'instant' from 'time' dict
+            value = p.get("value")
+            dict_list.append({"Time": time, "Value": value})
+
+        return pd.DataFrame(dict_list)
