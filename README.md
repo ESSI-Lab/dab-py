@@ -2,7 +2,7 @@
 A Python client for DAB functionalities, including DAB Terms API and WHOS API.
 
 ## Installation (0.4.0)
-Install the core package (`pandas` and `matplotlib`):
+Install the core package (includes `pandas` and `matplotlib`):
 ```bash
 pip install --upgrade dab-py
 ```
