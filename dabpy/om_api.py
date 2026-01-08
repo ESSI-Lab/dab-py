@@ -100,19 +100,22 @@ class WHOSClient:
             return []
         return [Feature(f) for f in data["results"]]
 
-    # --- Retrieve observations for a feature ---
-    def get_observations(self, feature_id):
-        if not feature_id:
-            raise ValueError("feature_id must be provided")
-        url = self.base_url + "observations?feature=" + feature_id
+    # --- Retrieve observations ---
+    def get_observations(self, constraints):
+        if not hasattr(constraints, "to_query"):
+            raise ValueError("constraints must have a to_query() method")
+
+        query = constraints.to_query()
+        url = self.base_url + "observations?" + query
         print("Retrieving " + obfuscate_token(url, self.token))
         response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP GET failed: {response.status_code}")
+        response.raise_for_status()
         data = response.json()
+
         if "member" not in data or not data["member"]:
-            print("No observations available for this feature.")
+            print("No observations available for these constraints.")
             return []
+
         return [Observation(obs) for obs in data["member"]]
 
     # --- Retrieve observation with full data ---
@@ -135,41 +138,52 @@ class WHOSClient:
 
     # --- Convert objects to DataFrame ---
     def features_to_df(self, features):
+        """Convert observations to a DataFrame."""
         if not features:
-            print("No data / features are available with the queries.")
-            return
+            return pd.DataFrame()
         return pd.DataFrame([f.to_dict() for f in features])
 
     def observations_to_df(self, observations):
+        """Convert observations to a DataFrame."""
         if not observations:
-            print("No data / observations are available with the queries.")
-            return
+            return pd.DataFrame()
         return pd.DataFrame([obs.to_dict() for obs in observations])
 
     def points_to_df(self, observation):
-        """Convert Observation points to a DataFrame with Time and Value columns."""
-        if not observation.points:
+        """Convert Observation points to a DataFrame with Time and Value columns.
+        Handles None or empty points automatically.
+        """
+        if not observation:
+            print("No observation data available for the requested time range.")
             return pd.DataFrame(columns=["Time", "Value"])
+        if not observation.points:
+            print("No data points available for this observation.")
+            return pd.DataFrame(columns=["Time", "Value"])
+
         return pd.DataFrame([
             {"Time": p.get("time", {}).get("instant"), "Value": p.get("value")}
             for p in observation.points
         ])
 
-    def plot_observation(self, obs, feature, title=None):
-        """Plot time series of an observation for a given feature."""
+    def plot_observation(self, obs, title=None):
+        """Plot time series of an observation. Handles None automatically."""
+        if not obs:
+            print("No observation data available for the requested time range.")
+            return
         if not obs.points:
-            print("No data points available.")
+            print("No data points available for this observation.")
             return
 
-        times = [datetime.fromisoformat(p['time']['instant'].replace("Z", "+00:00")) for p in obs.points]
-        values = [p['value'] for p in obs.points]
+        times = [
+            datetime.fromisoformat(p["time"]["instant"].replace("Z", "+00:00"))
+            for p in obs.points
+        ]
+        values = [p["value"] for p in obs.points]
 
         plt.figure(figsize=(10, 5))
-        plt.plot(times, values, "o-", color="b", label=obs.observed_property)
+        plt.plot(times, values, "o-", label=obs.observed_property)
 
-        # Custom title: "{observed_property} at the station: {feature_name}, {country}"
-        country = getattr(feature, "parameters", {}).get("country", "Unknown")
-        title_str = title or f"{obs.observed_property} at the station: {feature.name}, {country}"
+        title_str = title or f"{obs.observed_property} time series"
         plt.title(title_str)
 
         plt.xlabel("Date")

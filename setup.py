@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="dab_py",
-    version="0.4.0",
+    version="0.5.0",
     packages=find_packages(),
     install_requires=[
         "requests",
@@ -11,7 +11,7 @@ setup(
     ],
     license="GPL-3.0",
     author="Alun Sagara Putra (CNR Internship)",
-    description="A Python client for DAB Terms API and WHOS API (v2)",
+    description="A Python client for DAB Terms API and WHOS API",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/ESSI-Lab/dab-py/tree/main",
