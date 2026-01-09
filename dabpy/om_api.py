@@ -82,41 +82,76 @@ class WHOSClient:
         self.base_url = f"https://whos.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
 
     # --- Retrieve features ---
-    def get_features(self, constraints):
-        """Accepts a Constraints object and builds the query URL internally."""
+    def get_features(self, constraints, paginate=False, max_pages=None, verbose=True):
         if not hasattr(constraints, "to_query"):
-            raise ValueError("constraints must be a Constraints object or have a to_query() method")
+            raise ValueError("constraints must be a Constraints object")
 
-        query = constraints.to_query()
-        url = self.base_url + "features?" + query
-        print("Retrieving " + obfuscate_token(url, self.token))
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP GET failed: {response.status_code}")
+        base_query = constraints.to_query()
+        url = f"{self.base_url}features?{base_query}"
+        all_features, page = [], 1
 
-        data = response.json()
-        if "results" not in data or not data["results"]:
-            print("No data / features are available with the queries.")
-            return []
-        return [Feature(f) for f in data["results"]]
+        while True:
+            if verbose:
+                print(f"Retrieving page {page}: " + obfuscate_token(url, self.token))
+
+            resp = requests.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+
+            all_features.extend([Feature(f) for f in data.get("results", [])])
+            completed = data.get("completed", True)
+            token = data.get("resumptionToken")
+
+            if not paginate or completed or not token or (max_pages and page >= max_pages):
+                break
+
+            url = f"{self.base_url}features?{base_query}&resumptionToken={urllib.parse.quote(token)}"
+            page += 1
+
+        if verbose:
+            if completed:
+                print(f"Returned {len(all_features)} features (completed, data finished).")
+            else:
+                print(f"Returned {len(all_features)} features (not completed, more data available).")
+                print(f"Update the call with 'paginate=True' to see all data.")
+
+        return all_features
 
     # --- Retrieve observations ---
-    def get_observations(self, constraints):
+    def get_observations(self, constraints, paginate=False, max_pages=None, verbose=True):
         if not hasattr(constraints, "to_query"):
             raise ValueError("constraints must have a to_query() method")
 
-        query = constraints.to_query()
-        url = self.base_url + "observations?" + query
-        print("Retrieving " + obfuscate_token(url, self.token))
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        base_query = constraints.to_query()
+        url = f"{self.base_url}observations?{base_query}"
+        all_obs, page = [], 1
 
-        if "member" not in data or not data["member"]:
-            print("No observations available for these constraints.")
-            return []
+        while True:
+            if verbose:
+                print(f"Retrieving page {page}: " + obfuscate_token(url, self.token))
 
-        return [Observation(obs) for obs in data["member"]]
+            resp = requests.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+
+            all_obs.extend([Observation(o) for o in data.get("member", [])])
+            completed = data.get("completed", True)
+            token = data.get("resumptionToken")
+
+            if not paginate or completed or not token or (max_pages and page >= max_pages):
+                break
+
+            url = f"{self.base_url}observations?{base_query}&resumptionToken={urllib.parse.quote(token)}"
+            page += 1
+
+        if verbose:
+            if completed:
+                print(f"Returned {len(all_obs)} observations (completed, data finished).")
+            else:
+                print(f"Returned {len(all_obs)} observations (not completed, more data available).")
+                print(f"Update the call with 'paginate=True' to see all data.")
+
+        return all_obs
 
     # --- Retrieve observation with full data ---
     def get_observation_with_data(self, observation_id, begin=None, end=None):

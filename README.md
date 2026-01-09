@@ -42,7 +42,8 @@ This notebook and module are used to programmatically access WHOS DAB functional
 ### Features
 - Pythonic, **object-oriented access** via `Feature` and `Observation` classes. 
 - Support **all constrainst** with the **bounding box** as a default and others (e.g., observed property, ontology, country, provider) as optional. 
-- Retrieve **features** and **observations** as Python objects using the constraints.
+- Retrieve **features** and **observations** as Python objects using the `Constraints`.
+- Built-in **pagination** support → hints to use `paginate=True` if more data is available.
 - Convert API responses to `pandas` DataFrames for easier inspection and analysis. 
 - Generate automatic (default) time-series plots of observation data points using `matplotlib`.
 
@@ -50,6 +51,7 @@ This notebook and module are used to programmatically access WHOS DAB functional
 The tutorial is accessible through our Jupyter Notebook demo: `dab-py_demo_whos.ipynb`.
 ```bash
 from dabpy import WHOSClient, Constraints
+from IPython.display import display
 
 # Replace with your WHOS API token and optional view
 token = "my-token"  # replace with your actual token
@@ -59,10 +61,10 @@ client = WHOSClient(token=token, view=view)
 
 ## 00 DEFINE FEATURE CONSTRAINTS
 # Define bounding box coordinates (south, west, north, east), example of Finland.
-south = 60.347
-west = 22.438
-north = 60.714
-east = 23.012
+south = 60.398
+west = 22.149
+north = 60.690
+east = 22.730
 # Create feature constraints, only spatial constraints are applied, while the other filters remain optional.
 constraints = Constraints(bbox = (south, west, north, east))
 
@@ -70,6 +72,8 @@ constraints = Constraints(bbox = (south, west, north, east))
 ## 01 GET FEATURES
 # 01.1: Retrieve features matching the previously defined constraints (only bbox).
 features = client.get_features(constraints)
+# Use 'paginate=True' - features = client.get_features(constraints, paginate=True) to fetch all pages.
+
 # 01.2: (optional: Convert Features to DataFrame if needed).
 features_df = client.features_to_df(features)
 display(features_df)
@@ -78,13 +82,17 @@ display(features_df)
 ## 02 GET OBSERVATIONS
 # 02.1.1: Retrieve observations matching the previously defined constraints (only bbox).
 observations = client.get_observations(constraints)
-# 02.1.2: (optional: Convert Observations to DataFrame if needed)
+# Use 'paginate=True' - observations = client.get_observations(constraints, paginate=True) to fetch all pages.
+
+# 02.1.2: (optional: Convert Observations to DataFrame if needed).
 observations_df = client.observations_to_df(observations)
 display(observations_df)
 
 # 02.2.1: (or retrieve observations from a different constraints - by defining new_constraints).
-new_constraints = Constraints(feature=features[4].id)
+new_constraints = Constraints(feature=features[9].id)
 observations_new_constraints = client.get_observations(new_constraints)
+# Use 'paginate=True' - observations_new_constraints = client.get_observations(new_constraints, paginate=True) to fetch all pages.
+
 # 02.2.2: (optional: Convert Observations to DataFrame if needed)
 observations_new_constraints_df = client.observations_to_df(observations_new_constraints)
 display(observations_new_constraints_df)
@@ -99,4 +107,3 @@ display(obs_points_df)
 # 03.3: (optional: Example of Graphical Time-Series)
 client.plot_observation(obs_with_data, "Example of Time-series, custom your own title")
 ```
-
