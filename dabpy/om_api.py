@@ -79,7 +79,7 @@ class FeaturesCollection:
     def next(self):
         if self.completed or not self.resumption_token:
             print("No more data to fetch.")
-            return
+            return self
 
         url = f"{self.client.base_url}features?{self.constraints.to_query()}&resumptionToken={urllib.parse.quote(self.resumption_token)}"
         self.page += 1
@@ -94,10 +94,12 @@ class FeaturesCollection:
         self.features.extend(new_features)
         token = data.get("resumptionToken")
         self.resumption_token = token.split(",")[0] if token else None
-        self.completed = data.get("completed", True)
+        self.completed = data.get("completed", True) or not self.resumption_token
 
         if self.verbose:
             self._print_summary(len(new_features))
+
+        return self
 
     def to_df(self):
         return pd.DataFrame([f.to_dict() for f in self.current_page_features])
@@ -135,7 +137,7 @@ class ObservationsCollection:
     def next(self):
         if self.completed or not self.resumption_token:
             print("No more data to fetch.")
-            return
+            return self
 
         url = f"{self.client.base_url}observations?{self.constraints.to_query()}&resumptionToken={urllib.parse.quote(self.resumption_token)}"
         self.page += 1
@@ -150,10 +152,12 @@ class ObservationsCollection:
         self.observations.extend(new_obs)
         token = data.get("resumptionToken")
         self.resumption_token = token.split(",")[0] if token else None
-        self.completed = data.get("completed", True)
+        self.completed = data.get("completed", True) or not self.resumption_token
 
         if self.verbose:
             self._print_summary(len(new_obs))
+
+        return self
 
     def to_df(self):
         return pd.DataFrame([o.to_dict() for o in self.current_page_obs])

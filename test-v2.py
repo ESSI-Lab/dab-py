@@ -27,10 +27,10 @@ display(features_df)
 '''
 --- Use next() only to fetch all the pages ---
 # 01.2.1: # Fetch next page (if available).
-features.next()
+nextFeatures = features.next()
 # 01.2.2: (optional) Convert current page features to DataFrame.
-features_df = features.to_df() # now includes next page
-display(features_df)
+nextFeatures_df = nextFeatures.to_df()   
+display(nextFeatures_df)
 '''
 
 ## 02 GET OBSERVATIONS

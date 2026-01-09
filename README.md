@@ -1,7 +1,7 @@
 # DAB Pythonic Client (dab-py)
 A Python client for DAB functionalities, including DAB Terms API and WHOS API.
 
-## Installation (0.6.0)
+## Installation (0.7.0)
 Install the core package (includes `pandas` and `matplotlib`):
 ```bash
 pip install --upgrade dab-py
@@ -50,7 +50,7 @@ This notebook and module are used to programmatically access WHOS DAB functional
 ### Usage
 The tutorial is accessible through our Jupyter Notebook demo: `dab-py_demo_whos.ipynb`.
 ```bash
-from dabpy import WHOSClient, Constraints
+from dabpy import *
 from IPython.display import display
 
 # Replace with your WHOS API token and optional view
@@ -79,10 +79,10 @@ display(features_df)
 '''
 --- Use next() only to fetch all the pages ---
 # 01.2.1: # Fetch next page (if available).
-features.next()
+nextFeatures = features.next()
 # 01.2.2: (optional) Convert current page features to DataFrame.
-features_df = features.to_df() # now includes next page
-display(features_df)
+nextFeatures_df = nextFeatures.to_df()   
+display(nextFeatures_df)
 '''
 
 ## 02 GET OBSERVATIONS
