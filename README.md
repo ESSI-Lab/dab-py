@@ -88,19 +88,17 @@ display(features_df)
 ## 02 GET OBSERVATIONS
 # 02.1.1: Retrieve observations matching the previously defined constraints (only bbox).
 observations = client.get_observations(constraints)
-# Use 'paginate=True' - observations = client.get_observations(constraints, paginate=True) to fetch all pages.
 
-# 02.1.2: (optional: Convert Observations to DataFrame if needed).
-observations_df = client.observations_to_df(observations)
+# 02.1.2: (optional: Convert Observations to DataFrame if needed)
+observations_df = observations.to_df()
 display(observations_df)
 
-# 02.2.1: (or retrieve observations from a different constraints - by defining new_constraints).
+# 02.2.1: (or) retrieve observations from a different constraints - by defining new_constraints.
 new_constraints = Constraints(feature=features[9].id)
 observations_new_constraints = client.get_observations(new_constraints)
-# Use 'paginate=True' - observations_new_constraints = client.get_observations(new_constraints, paginate=True) to fetch all pages.
 
 # 02.2.2: (optional: Convert Observations to DataFrame if needed)
-observations_new_constraints_df = client.observations_to_df(observations_new_constraints)
+observations_new_constraints_df = observations_new_constraints.to_df()
 display(observations_new_constraints_df)
 
 
