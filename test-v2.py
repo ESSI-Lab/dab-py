@@ -18,14 +18,20 @@ constraints = Constraints(bbox = (south, west, north, east))
 
 
 ## 01 GET FEATURES
-# 01.1: Retrieve features matching the previously defined constraints (only bbox).
+# 01.1.1: Retrieve features matching the previously defined constraints (only bbox).
 features = client.get_features(constraints)
-# Use 'paginate=True' - features = client.get_features(constraints, paginate=True) to fetch all pages.
-
-# 01.2: (optional: Convert Features to DataFrame if needed).
-features_df = client.features_to_df(features)
+# 01.1.2: (optional: Convert Features to DataFrame if needed).
+features_df = features.to_df()
 display(features_df)
 
+'''
+--- Use next() only to fetch all the pages ---
+# 01.2.1: # Fetch next page (if available).
+features.next()
+# 01.2.2: (optional) Convert current page features to DataFrame.
+features_df = features.to_df() # now includes next page
+display(features_df)
+'''
 
 ## 02 GET OBSERVATIONS
 # 02.1.1: Retrieve observations matching the previously defined constraints (only bbox).

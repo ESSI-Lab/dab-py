@@ -1,7 +1,7 @@
 # DAB Pythonic Client (dab-py)
 A Python client for DAB functionalities, including DAB Terms API and WHOS API.
 
-## Installation (0.5.0)
+## Installation (0.6.0)
 Install the core package (includes `pandas` and `matplotlib`):
 ```bash
 pip install --upgrade dab-py
@@ -43,7 +43,7 @@ This notebook and module are used to programmatically access WHOS DAB functional
 - Pythonic, **object-oriented access** via `Feature` and `Observation` classes. 
 - Support **all constrainst** with the **bounding box** as a default and others (e.g., observed property, ontology, country, provider) as optional. 
 - Retrieve **features** and **observations** as Python objects using the `Constraints`.
-- Built-in **pagination** support → hints to use `paginate=True` if more data is available.
+- **Per-page pagination** built in → use `.next()` on object class to fetch subsequent pages.
 - Convert API responses to `pandas` DataFrames for easier inspection and analysis. 
 - Generate automatic (default) time-series plots of observation data points using `matplotlib`.
 
@@ -70,14 +70,20 @@ constraints = Constraints(bbox = (south, west, north, east))
 
 
 ## 01 GET FEATURES
-# 01.1: Retrieve features matching the previously defined constraints (only bbox).
+# 01.1.1: Retrieve features matching the previously defined constraints (only bbox).
 features = client.get_features(constraints)
-# Use 'paginate=True' - features = client.get_features(constraints, paginate=True) to fetch all pages.
-
-# 01.2: (optional: Convert Features to DataFrame if needed).
-features_df = client.features_to_df(features)
+# 01.1.2: (optional: Convert Features to DataFrame if needed).
+features_df = features.to_df()
 display(features_df)
 
+'''
+--- Use next() only to fetch all the pages ---
+# 01.2.1: # Fetch next page (if available).
+features.next()
+# 01.2.2: (optional) Convert current page features to DataFrame.
+features_df = features.to_df() # now includes next page
+display(features_df)
+'''
 
 ## 02 GET OBSERVATIONS
 # 02.1.1: Retrieve observations matching the previously defined constraints (only bbox).

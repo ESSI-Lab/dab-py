@@ -8,21 +8,16 @@ def obfuscate_token(url, token):
     """Replace the token in a URL with '***' for safe printing."""
     return url.replace(token, "***")
 
+# --- Feature and Observation classes ---
 class Feature:
-    """Python representation of a WHOS feature."""
     def __init__(self, feature_json):
         self.id = feature_json["id"]
         self.name = feature_json["name"]
         self.coordinates = feature_json["shape"]["coordinates"]
         self.parameters = {param["name"]: param["value"] for param in feature_json["parameter"]}
         self.related_party = feature_json.get("relatedParty", [])
-
-        if self.related_party:
-            self.contact_name = self.related_party[0].get("individualName", "")
-            self.contact_email = self.related_party[0].get("electronicMailAddress", "")
-        else:
-            self.contact_name = ""
-            self.contact_email = ""
+        self.contact_name = self.related_party[0].get("individualName", "") if self.related_party else ""
+        self.contact_email = self.related_party[0].get("electronicMailAddress", "") if self.related_party else ""
 
     def to_dict(self):
         return {
@@ -39,190 +34,218 @@ class Feature:
         return f"<Feature id={self.id} name={self.name}>"
 
 class Observation:
-    """Python representation of a WHOS observation."""
     def __init__(self, obs_json):
         params = {param["name"]: param["value"] for param in obs_json.get("parameter", [])}
         self.id = obs_json["id"]
-        self.type = obs_json.get("type")
         self.source = params.get("source")
-        self.observed_property_definition = params.get("observedPropertyDefinition")
-        self.original_observed_property = params.get("originalObservedProperty")
         self.observed_property = obs_json.get("observedProperty", {}).get("title")
         self.phenomenon_time_begin = obs_json.get("phenomenonTime", {}).get("begin")
         self.phenomenon_time_end = obs_json.get("phenomenonTime", {}).get("end")
-        self.feature_of_interest_href = obs_json.get("featureOfInterest", {}).get("href")
-        result_meta = obs_json.get("result", {}).get("defaultPointMetadata", {})
-        self.uom = result_meta.get("uom")
-        self.interpolation_type = result_meta.get("interpolationType", {}).get("title")
         self.points = obs_json.get("result", {}).get("points", [])
 
     def to_dict(self):
         return {
             "ID": self.id,
             "Source": self.source,
-            "Observed Property Definition": self.observed_property_definition,
-            "Original Observed Property": self.original_observed_property,
             "Observed Property": self.observed_property,
             "Phenomenon Time Begin": self.phenomenon_time_begin,
-            "Phenomenon Time End": self.phenomenon_time_end,
-            "Feature of Interest Href": self.feature_of_interest_href,
-            "Observation Type": self.type,
-            "Unit of Measurement": self.uom,
-            "Interpolation Type": self.interpolation_type
+            "Phenomenon Time End": self.phenomenon_time_end
         }
 
     def __repr__(self):
         return f"<Observation id={self.id} property={self.observed_property}>"
 
+# --- Collections with per-page support ---
+class FeaturesCollection:
+    """Collection of features with per-page pagination."""
+    def __init__(self, client, constraints, initial_features=None, resumption_token=None, page=1, verbose=True):
+        self.client = client
+        self.constraints = constraints
+        self.features = initial_features or []
+        self.current_page_features = initial_features or []
+        self.resumption_token = resumption_token
+        self.completed = False
+        self.page = page
+        self.verbose = verbose
+        if self.verbose:
+            self._print_summary(len(self.current_page_features))
+
+    def __len__(self):
+        return len(self.features)
+
+    def __getitem__(self, idx):
+        return self.features[idx]
+
+    def next(self):
+        if self.completed or not self.resumption_token:
+            print("No more data to fetch.")
+            return
+
+        url = f"{self.client.base_url}features?{self.constraints.to_query()}&resumptionToken={urllib.parse.quote(self.resumption_token)}"
+        self.page += 1
+        if self.verbose:
+            print(f"Retrieving page {self.page}: {url.replace(self.client.token, '***')}")
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        new_features = [Feature(f) for f in data.get("results", [])]
+        self.current_page_features = new_features
+        self.features.extend(new_features)
+        token = data.get("resumptionToken")
+        self.resumption_token = token.split(",")[0] if token else None
+        self.completed = data.get("completed", True)
+
+        if self.verbose:
+            self._print_summary(len(new_features))
+
+    def to_df(self):
+        return pd.DataFrame([f.to_dict() for f in self.current_page_features])
+
+    def _print_summary(self, n_returned):
+        prefix = "first" if self.page == 1 else "next"
+        msg = f"Returned {prefix} {n_returned} features"
+        if self.completed:
+            print(msg + " (completed, data finished).")
+        elif self.resumption_token:
+            print(msg + " (not completed, more data available).\nUse class.next() to move to the next page.")
+        else:
+            print(msg + " (completed, data finished).")  # edge case: no token but completed=False
+
+class ObservationsCollection:
+    """Collection of observations with per-page pagination."""
+    def __init__(self, client, constraints, initial_obs=None, resumption_token=None, page=1, verbose=True):
+        self.client = client
+        self.constraints = constraints
+        self.observations = initial_obs or []
+        self.current_page_obs = initial_obs or []
+        self.resumption_token = resumption_token
+        self.completed = False
+        self.page = page
+        self.verbose = verbose
+        if self.verbose:
+            self._print_summary(len(self.current_page_obs))
+
+    def __len__(self):
+        return len(self.observations)
+
+    def __getitem__(self, idx):
+        return self.observations[idx]
+
+    def next(self):
+        if self.completed or not self.resumption_token:
+            print("No more data to fetch.")
+            return
+
+        url = f"{self.client.base_url}observations?{self.constraints.to_query()}&resumptionToken={urllib.parse.quote(self.resumption_token)}"
+        self.page += 1
+        if self.verbose:
+            print(f"Retrieving page {self.page}: {url.replace(self.client.token, '***')}")
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        new_obs = [Observation(o) for o in data.get("member", [])]
+        self.current_page_obs = new_obs
+        self.observations.extend(new_obs)
+        token = data.get("resumptionToken")
+        self.resumption_token = token.split(",")[0] if token else None
+        self.completed = data.get("completed", True)
+
+        if self.verbose:
+            self._print_summary(len(new_obs))
+
+    def to_df(self):
+        return pd.DataFrame([o.to_dict() for o in self.current_page_obs])
+
+    def _print_summary(self, n_returned):
+        prefix = "first" if self.page == 1 else "next"
+        msg = f"Returned {prefix} {n_returned} observations"
+        if self.completed:
+            print(msg + " (completed, data finished).")
+        elif self.resumption_token:
+            print(msg + " (not completed, more data available).\nUse class.next() to move to the next page.")
+        else:
+            print(msg + " (completed, data finished).")  # edge case
+
+# --- WHOS Client ---
 class WHOSClient:
-    """WHOS API client to retrieve features and observations as Python objects or Pandas DataFrame."""
     def __init__(self, token, view="whos"):
         self.token = token
         self.view = view
         self.base_url = f"https://whos.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
 
-    # --- Retrieve features ---
-    def get_features(self, constraints, paginate=False, max_pages=None, verbose=True):
-        if not hasattr(constraints, "to_query"):
-            raise ValueError("constraints must be a Constraints object")
-
-        base_query = constraints.to_query()
-        url = f"{self.base_url}features?{base_query}"
-        all_features, page = [], 1
-
-        while True:
-            if verbose:
-                print(f"Retrieving page {page}: " + obfuscate_token(url, self.token))
-
-            resp = requests.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-
-            all_features.extend([Feature(f) for f in data.get("results", [])])
-            completed = data.get("completed", True)
-            token = data.get("resumptionToken")
-
-            if not paginate or completed or not token or (max_pages and page >= max_pages):
-                break
-
-            url = f"{self.base_url}features?{base_query}&resumptionToken={urllib.parse.quote(token)}"
-            page += 1
-
+    def get_features(self, constraints, verbose=True):
+        url = f"{self.base_url}features?{constraints.to_query()}"
         if verbose:
-            if completed:
-                print(f"Returned {len(all_features)} features (completed, data finished).")
-            else:
-                print(f"Returned {len(all_features)} features (not completed, more data available).")
-                print(f"Update the call with 'paginate=True' to see all data.")
+            print(f"Retrieving page 1: {obfuscate_token(url, self.token)}")
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
 
-        return all_features
+        features_list = [Feature(f) for f in data.get("results", [])]
+        token = data.get("resumptionToken")
+        resumption_token = token.split(",")[0] if token else None
+        collection = FeaturesCollection(self, constraints, features_list, resumption_token, page=1, verbose=verbose)
+        collection.completed = data.get("completed", True)
+        return collection
 
-    # --- Retrieve observations ---
-    def get_observations(self, constraints, paginate=False, max_pages=None, verbose=True):
-        if not hasattr(constraints, "to_query"):
-            raise ValueError("constraints must have a to_query() method")
-
-        base_query = constraints.to_query()
-        url = f"{self.base_url}observations?{base_query}"
-        all_obs, page = [], 1
-
-        while True:
-            if verbose:
-                print(f"Retrieving page {page}: " + obfuscate_token(url, self.token))
-
-            resp = requests.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-
-            all_obs.extend([Observation(o) for o in data.get("member", [])])
-            completed = data.get("completed", True)
-            token = data.get("resumptionToken")
-
-            if not paginate or completed or not token or (max_pages and page >= max_pages):
-                break
-
-            url = f"{self.base_url}observations?{base_query}&resumptionToken={urllib.parse.quote(token)}"
-            page += 1
-
+    def get_observations(self, constraints, verbose=True):
+        url = f"{self.base_url}observations?{constraints.to_query()}"
         if verbose:
-            if completed:
-                print(f"Returned {len(all_obs)} observations (completed, data finished).")
-            else:
-                print(f"Returned {len(all_obs)} observations (not completed, more data available).")
-                print(f"Update the call with 'paginate=True' to see all data.")
+            print(f"Retrieving page 1: {obfuscate_token(url, self.token)}")
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
 
-        return all_obs
+        obs_list = [Observation(o) for o in data.get("member", [])]
+        token = data.get("resumptionToken")
+        resumption_token = token.split(",")[0] if token else None
+        collection = ObservationsCollection(self, constraints, obs_list, resumption_token, page=1, verbose=verbose)
+        collection.completed = data.get("completed", True)
+        return collection
 
-    # --- Retrieve observation with full data ---
     def get_observation_with_data(self, observation_id, begin=None, end=None):
         url = self.base_url + f"observations?includeData=true&observationIdentifier={urllib.parse.quote(observation_id)}"
         if begin:
             url += "&beginPosition=" + urllib.parse.quote(begin)
         if end:
             url += "&endPosition=" + urllib.parse.quote(end)
-
         print("Retrieving " + obfuscate_token(url, self.token))
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP GET failed: {response.status_code}")
-        data = response.json()
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
         if "member" not in data or not data["member"]:
             print("No observation data available for the requested time range.")
             return None
         return Observation(data["member"][0])
 
-    # --- Convert objects to DataFrame ---
     def features_to_df(self, features):
-        """Convert observations to a DataFrame."""
         if not features:
             return pd.DataFrame()
         return pd.DataFrame([f.to_dict() for f in features])
 
     def observations_to_df(self, observations):
-        """Convert observations to a DataFrame."""
         if not observations:
             return pd.DataFrame()
-        return pd.DataFrame([obs.to_dict() for obs in observations])
+        return pd.DataFrame([o.to_dict() for o in observations])
 
     def points_to_df(self, observation):
-        """Convert Observation points to a DataFrame with Time and Value columns.
-        Handles None or empty points automatically.
-        """
-        if not observation:
-            print("No observation data available for the requested time range.")
+        if not observation or not observation.points:
             return pd.DataFrame(columns=["Time", "Value"])
-        if not observation.points:
-            print("No data points available for this observation.")
-            return pd.DataFrame(columns=["Time", "Value"])
-
-        return pd.DataFrame([
-            {"Time": p.get("time", {}).get("instant"), "Value": p.get("value")}
-            for p in observation.points
-        ])
+        return pd.DataFrame([{"Time": p.get("time", {}).get("instant"), "Value": p.get("value")} for p in observation.points])
 
     def plot_observation(self, obs, title=None):
-        """Plot time series of an observation. Handles None automatically."""
-        if not obs:
-            print("No observation data available for the requested time range.")
-            return
-        if not obs.points:
+        if not obs or not obs.points:
             print("No data points available for this observation.")
             return
-
-        times = [
-            datetime.fromisoformat(p["time"]["instant"].replace("Z", "+00:00"))
-            for p in obs.points
-        ]
+        times = [datetime.fromisoformat(p["time"]["instant"].replace("Z", "+00:00")) for p in obs.points]
         values = [p["value"] for p in obs.points]
-
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(10,5))
         plt.plot(times, values, "o-", label=obs.observed_property)
-
-        title_str = title or f"{obs.observed_property} time series"
-        plt.title(title_str)
-
+        plt.title(title or f"{obs.observed_property} time series")
         plt.xlabel("Date")
-        plt.ylabel(f"Value ({obs.uom})")
+        plt.ylabel(f"Value ({getattr(obs,'uom', '')})")
         plt.grid(True)
         plt.legend()
         plt.xticks(rotation=45)
