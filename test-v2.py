@@ -1,11 +1,10 @@
 from dabpy import *
 from IPython.display import display
 
-# Replace with your WHOS API token and optional view
+# Replace with your token and optional view (WHOS or HIS-Central)
 token = "my-token"  # replace with your actual token
-view = "whos"
-client = WHOSClient(token=token, view=view)
-
+view = "whos" # replace with 'whos' or 'his-central'
+client = DABClient(token=token, view=view)
 
 ## 00 DEFINE FEATURE CONSTRAINTS
 # Define bounding box coordinates (south, west, north, east), example of Finland.

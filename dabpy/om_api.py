@@ -110,7 +110,7 @@ class FeaturesCollection:
         if self.completed:
             print(msg + " (completed, data finished).")
         elif self.resumption_token:
-            print(msg + " (not completed, more data available).\nUse class.next() to move to the next page.")
+            print(msg + " (not completed, more data available).\nUse .next() to move to the next page.")
         else:
             print(msg + " (completed, data finished).")  # edge case: no token but completed=False
 
@@ -168,21 +168,34 @@ class ObservationsCollection:
         if self.completed:
             print(msg + " (completed, data finished).")
         elif self.resumption_token:
-            print(msg + " (not completed, more data available).\nUse class.next() to move to the next page.")
+            print(msg + " (not completed, more data available).\nUse .next() to move to the next page.")
         else:
             print(msg + " (completed, data finished).")  # edge case
 
-# --- WHOS Client ---
-class WHOSClient:
-    def __init__(self, token, view="whos"):
+# --- Main DAB Client Class ---
+class DABClient:
+    """Generic DAB client for retrieving features and observations."""
+    def __init__(self, token="{token}", view="{view}", base_url_template=None):
         self.token = token
         self.view = view
-        self.base_url = f"https://whos.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
+        # Use provided template or default generic template
+        if base_url_template:
+            self.base_url_template = base_url_template
+        else:
+            # Default generic template
+            self.base_url_template = "https://gs-service-preproduction.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
+
+        # Format the URL if token/view are actual values
+        if "{token}" not in self.token and "{view}" not in self.view:
+            self.base_url = self.base_url_template.format(token=self.token, view=self.view)
+        else:
+            # Keep placeholders if token/view are default
+            self.base_url = self.base_url_template
 
     def get_features(self, constraints, verbose=True):
         url = f"{self.base_url}features?{constraints.to_query()}"
         if verbose:
-            print(f"Retrieving page 1: {obfuscate_token(url, self.token)}")
+            print(f"Retrieving page 1: {self._obfuscate_token(url)}")
         resp = requests.get(url)
         resp.raise_for_status()
         data = resp.json()
@@ -197,7 +210,7 @@ class WHOSClient:
     def get_observations(self, constraints, verbose=True):
         url = f"{self.base_url}observations?{constraints.to_query()}"
         if verbose:
-            print(f"Retrieving page 1: {obfuscate_token(url, self.token)}")
+            print(f"Retrieving page 1: {self._obfuscate_token(url)}")
         resp = requests.get(url)
         resp.raise_for_status()
         data = resp.json()
@@ -215,7 +228,7 @@ class WHOSClient:
             url += "&beginPosition=" + urllib.parse.quote(begin)
         if end:
             url += "&endPosition=" + urllib.parse.quote(end)
-        print("Retrieving " + obfuscate_token(url, self.token))
+        print("Retrieving " + self._obfuscate_token(url))
         resp = requests.get(url)
         resp.raise_for_status()
         data = resp.json()
@@ -224,6 +237,7 @@ class WHOSClient:
             return None
         return Observation(data["member"][0])
 
+    # Generic helpers
     def features_to_df(self, features):
         if not features:
             return pd.DataFrame()
@@ -237,7 +251,8 @@ class WHOSClient:
     def points_to_df(self, observation):
         if not observation or not observation.points:
             return pd.DataFrame(columns=["Time", "Value"])
-        return pd.DataFrame([{"Time": p.get("time", {}).get("instant"), "Value": p.get("value")} for p in observation.points])
+        return pd.DataFrame(
+            [{"Time": p.get("time", {}).get("instant"), "Value": p.get("value")} for p in observation.points])
 
     def plot_observation(self, obs, title=None):
         if not obs or not obs.points:
@@ -245,13 +260,29 @@ class WHOSClient:
             return
         times = [datetime.fromisoformat(p["time"]["instant"].replace("Z", "+00:00")) for p in obs.points]
         values = [p["value"] for p in obs.points]
-        plt.figure(figsize=(10,5))
+        plt.figure(figsize=(10, 5))
         plt.plot(times, values, "o-", label=obs.observed_property)
         plt.title(title or f"{obs.observed_property} time series")
         plt.xlabel("Date")
-        plt.ylabel(f"Value ({getattr(obs,'uom', '')})")
+        plt.ylabel(f"Value ({getattr(obs, 'uom', '')})")
         plt.grid(True)
         plt.legend()
         plt.xticks(rotation=45)
         plt.tight_layout()
         plt.show()
+
+    # Internal method for token obfuscation
+    def _obfuscate_token(self, url):
+        return url.replace(self.token, "***")
+
+# Client subclasses
+class WHOSClient(DABClient):
+    def __init__(self, token, view="whos"):
+        base_url_template = "https://whos.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
+        super().__init__(token, view, base_url_template)
+
+
+class HISCentralClient(DABClient):
+    def __init__(self, token, view="his-central"):
+        base_url_template = "https://his-central.geodab.eu/gs-service/services/essi/token/{token}/view/{view}/om-api/"
+        super().__init__(token, view, base_url_template)

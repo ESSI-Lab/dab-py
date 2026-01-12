@@ -37,9 +37,13 @@ if __name__ == "__main__":
     main()
 ```
 
-## WHOS API `om_api: WHOSClient, Constraints`
-This notebook and module are used to programmatically access WHOS DAB functionalities through the OGC OM-JSON based API, which is documented and available for testing here: https://whos.geodab.eu/gs-service/om-api.
+## DAB API `om_api: DABClient, WHOSClient, HISCentralClient, Constraints`
+This notebook and module provide programmatic access to DAB services (currently WHOS and HIS-Central) via the OGC OM-JSON API. The API is documented and available for testing here: https://gs-service-preproduction.geodab.eu/gs-service/om-api/
+- **WHOS:** https://whos.geodab.eu/gs-service/om-api
+- **HIS-Central:** https://his-central.geodab.eu/gs-service/om-api/
 ### Features
+- Generic DAB client (`DABClient`) for core functionality shared across services. 
+- Service-specific subclasses (`WHOSClient`, `HISCentralClient`) for convenient instantiation with the correct base URL.
 - Pythonic, **object-oriented access** via `Feature` and `Observation` classes. 
 - Support **all constrainst** with the **bounding box** as a default and others (e.g., observed property, ontology, country, provider) as optional. 
 - Retrieve **features** and **observations** as Python objects using the `Constraints`.
@@ -48,16 +52,15 @@ This notebook and module are used to programmatically access WHOS DAB functional
 - Generate automatic (default) time-series plots of observation data points using `matplotlib`.
 
 ### Usage
-The tutorial is accessible through our Jupyter Notebook demo: `dab-py_demo_whos.ipynb`.
+The tutorial is accessible through our Jupyter Notebook demo: `dab-py_demo_whos.ipynb` or `dab-py_demo_his_central.ipynb`.
 ```bash
 from dabpy import *
 from IPython.display import display
 
-# Replace with your WHOS API token and optional view
+# Replace with your token and optional view (WHOS or HIS-Central)
 token = "my-token"  # replace with your actual token
-view = "whos"
-client = WHOSClient(token=token, view=view)
-
+view = "whos" # replace with 'whos' or 'his-central'
+client = DABClient(token=token, view=view)
 
 ## 00 DEFINE FEATURE CONSTRAINTS
 # Define bounding box coordinates (south, west, north, east), example of Finland.
@@ -76,7 +79,7 @@ features = client.get_features(constraints)
 features_df = features.to_df()
 display(features_df)
 
-'''
+
 --- Use next() only to fetch all the pages ---
 # 01.2.1: # Fetch next page (if available).
 nextFeatures = features.next()
