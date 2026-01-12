@@ -52,7 +52,7 @@ This notebook and module provide programmatic access to DAB services (currently 
 - Generate automatic (default) time-series plots of observation data points using `matplotlib`.
 
 ### Usage
-The tutorial is accessible through our Jupyter Notebook demo: `dab-py_demo_whos.ipynb` or `dab-py_demo_his_central.ipynb`.
+The tutorial is accessible through our Jupyter Notebook demo: https://github.com/ESSI-Lab/dab-pynb.
 ```bash
 from dabpy import *
 from IPython.display import display
