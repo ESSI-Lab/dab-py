@@ -1,7 +1,7 @@
 # DAB Pythonic Client (dab-py)
 A Python client for DAB functionalities, including DAB Terms API and WHOS API.
 
-## Installation (0.7.0)
+## Installation (0.8.0)
 Install the core package (includes `pandas` and `matplotlib`):
 ```bash
 pip install --upgrade dab-py
