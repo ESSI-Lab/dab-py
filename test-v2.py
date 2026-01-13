@@ -60,27 +60,29 @@ display(obs_points_df)
 client.plot_observation(obs_with_data, "Example of Time-series, custom your own title")
 
 '''--------- 02 DOWNLOAD DATA OBSERVATIONS ---------'''
-# 02.00 Define bounding box coordinates (or you can use from previous one)
+# 02.00: Define bounding box coordinates (or you can use from previous one)
 south_2 = 41.722
 west_2 = 12.233
 north_2 = 41.791
 east_2 = 12.296
 
-# 02.01 Create New DownloadConstraints
+# 02.01: Create New DownloadConstraints
 download_constraints = DownloadConstraints(
     bbox = (south_2, west_2, north_2, east_2),
     # if use from previous define constraints, base_constraints = constraints,
     asynchDownloadName = "download_example" # Name the downloaded file is mandatory
 )
 
-# --- PUT: create download ---
-response = client.create_download(download_constraints)
-print(response)
+# 02.02: PUT: Create Download
+create_resp = client.create_download(download_constraints)
+print(create_resp)
+# Extract download ID (real ID used internally)
+download_id = create_resp["id"]
 
-# GET status
+# 02.03: GET: Check Status of Downloaded List
 downloads = client.get_download_status(download_id)
-display(downloads.to_df())  # shows obfuscated id
+display(downloads.to_df())
 
-# DELETE by ID
+# 02.04: DELETE: Delete by ID
 delete_resp = client.delete_download(download_id)
 print(delete_resp)
