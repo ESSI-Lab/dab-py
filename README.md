@@ -44,9 +44,13 @@ This notebook and module provide programmatic access to DAB services (currently 
 ### Features
 - Generic DAB client (`DABClient`) for core functionality shared across services. 
 - Service-specific subclasses (`WHOSClient`, `HISCentralClient`) for convenient instantiation with the correct base URL.
-- Pythonic, **object-oriented access** via `Feature` and `Observation` classes. 
+- Pythonic, **object-oriented access** via `Feature`, `Observation`, and `Download` classes. 
 - Support **all constrainst** with the **bounding box** as a default and others (e.g., observed property, ontology, country, provider) as optional. 
-- Retrieve **features** and **observations** as Python objects using the `Constraints`.
+- - Retrieve **features** and **observations** as Python objects using the `Constraints`. 
+- - Extended download-specific constraints via `DownloadConstraints`.
+- - - PUT: Create asynchronous downloads
+- - - GET: Check download status by download ID
+- - - DELETE: Remove downloads by ID (no indexing required)
 - **Per-page pagination** built in → use `.next()` on object class to fetch subsequent pages.
 - Convert API responses to `pandas` DataFrames for easier inspection and analysis. 
 - Generate automatic (default) time-series plots of observation data points using `matplotlib`.

@@ -19,7 +19,9 @@ class Constraints:
         predefinedLayer=None,
         timeInterpolation=None,
         intendedObservationSpacing=None,
-        aggregationDuration=None
+        aggregationDuration=None,
+        limit=None,
+        format=None
     ):
         self.bbox = bbox
         self.observedProperty = observedProperty
@@ -36,6 +38,8 @@ class Constraints:
         self.timeInterpolation = timeInterpolation
         self.intendedObservationSpacing = intendedObservationSpacing
         self.aggregationDuration = aggregationDuration
+        self.limit = limit
+        self.format = format
 
     def to_query(self):
         """Build URL query string including only set parameters."""
@@ -75,5 +79,51 @@ class Constraints:
             query_parts.append(f"intendedObservationSpacing={self.intendedObservationSpacing}")
         if self.aggregationDuration:
             query_parts.append(f"aggregationDuration={self.aggregationDuration}")
+        if self.limit is not None:
+            query_parts.append(f"limit={self.limit}")
+        if self.format:
+            query_parts.append(f"format={self.format}")
 
         return "&".join(query_parts)
+
+
+class DownloadConstraints(Constraints):
+    """
+    Extends Constraints with download-specific parameters:
+    asynchDownloadName, eMailNotifications, useCache
+    """
+    def __init__(
+        self,
+        base_constraints: Constraints = None,
+        asynchDownloadName=None,
+        eMailNotifications=None,
+        useCache=None,
+        **kwargs
+    ):
+        # Initialize the parent Constraints attributes
+        if base_constraints:
+            super().__init__(**base_constraints.__dict__)
+        else:
+            super().__init__(**kwargs)
+
+        # Download-specific fields
+        self.asynchDownloadName = asynchDownloadName
+        self.eMailNotifications = eMailNotifications
+        self.useCache = useCache
+
+    def to_query(self):
+        """Build query string including inherited Constraints fields + download-specific ones."""
+        query = super().to_query()  # get all inherited fields first
+        extra = []
+
+        if self.asynchDownloadName:
+            extra.append(f"asynchDownloadName={self.asynchDownloadName}")
+        if self.eMailNotifications is not None:
+            extra.append(f"eMailNotifications={str(self.eMailNotifications).lower()}")
+        if self.useCache is not None:
+            extra.append(f"useCache={str(self.useCache).lower()}")
+
+        if extra:
+            query += "&" + "&".join(extra)
+
+        return query

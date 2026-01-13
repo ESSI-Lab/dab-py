@@ -4,10 +4,6 @@ import urllib.parse
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-def obfuscate_token(url, token):
-    """Replace the token in a URL with '***' for safe printing."""
-    return url.replace(token, "***")
-
 # --- Feature and Observation classes ---
 class Feature:
     def __init__(self, feature_json):
@@ -54,6 +50,49 @@ class Observation:
 
     def __repr__(self):
         return f"<Observation id={self.id} property={self.observed_property}>"
+
+class Download:
+    """Represents a single download record."""
+    def __init__(self, download_json):
+        self.downloadName = download_json.get("downloadName")
+        self.sizeInMB = download_json.get("sizeInMB")
+        self.status = download_json.get("status")
+        self.timestamp = download_json.get("timestamp")
+        self.locator = download_json.get("locator")
+        self.id = download_json.get("id")
+
+    @staticmethod
+    def obfuscate_download_id(download_id: str) -> str:
+        """
+        Obfuscate email part of download ID.
+        example: email@domain:uuid → ***:uuid
+        """
+        if not download_id or ":" not in download_id:
+            return download_id
+        _, uuid_part = download_id.split(":", 1)
+        return f"***:{uuid_part}"
+
+    def to_dict(self):
+        return {
+            "downloadName": self.downloadName,
+            "sizeInMB": self.sizeInMB,
+            "status": self.status,
+            "timestamp": self.timestamp,
+            "locator": self.locator,
+            "id": self.obfuscate_download_id(self.id)  # call the method here
+        }
+
+    def delete(self):
+        if not self.id:
+            raise ValueError("Cannot delete download without id.")
+        url = self.client.base_url + f"downloads?id={urllib.parse.quote(self.id)}"
+        print("DELETE Download URL:", self.client._obfuscate_token(url))  # safe print
+        resp = requests.delete(url)
+        resp.raise_for_status()
+        return resp.json()
+
+    def __repr__(self):
+        return f"<Download id={self.id} name={self.downloadName} status={self.status}>"
 
 # --- Collections with per-page support ---
 class FeaturesCollection:
@@ -172,6 +211,25 @@ class ObservationsCollection:
         else:
             print(msg + " (completed, data finished).")  # edge case
 
+
+class DownloadsCollection:
+    """Collection of Download objects with simple list behavior."""
+
+    def __init__(self, downloads_list=None):
+        self.downloads = downloads_list or []
+
+    def __len__(self):
+        return len(self.downloads)
+
+    def __getitem__(self, idx):
+        return self.downloads[idx]
+
+    def to_df(self):
+        return pd.DataFrame([d.to_dict() for d in self.downloads])
+
+    def __repr__(self):
+        return f"<DownloadsCollection count={len(self.downloads)}>"
+
 # --- Main DAB Client Class ---
 class DABClient:
     """Generic DAB client for retrieving features and observations."""
@@ -191,6 +249,35 @@ class DABClient:
         else:
             # Keep placeholders if token/view are default
             self.base_url = self.base_url_template
+
+    def _obfuscate_download_id_in_url(self, url: str) -> str:
+        """
+        Obfuscate email part of download_id inside query string.
+        Example:
+        id=email@domain:uuid → id=***:uuid
+        """
+        if "id=" not in url:
+            return url
+
+        prefix, id_part = url.split("id=", 1)
+
+        # Handle URL-encoded colon
+        if "%3A" in id_part:
+            _, uuid_part = id_part.split("%3A", 1)
+            return f"{prefix}id=***%3A{uuid_part}"
+
+        # Handle plain colon
+        if ":" in id_part:
+            _, uuid_part = id_part.split(":", 1)
+            return f"{prefix}id=***:{uuid_part}"
+
+        return url
+
+    def _obfuscate_token(self, url: str) -> str:
+        """Obfuscate token and download ID for safe printing."""
+        url = url.replace(self.token, "***")
+        url = self._obfuscate_download_id_in_url(url)
+        return url
 
     def get_features(self, constraints, verbose=True):
         url = f"{self.base_url}features?{constraints.to_query()}"
@@ -271,9 +358,53 @@ class DABClient:
         plt.tight_layout()
         plt.show()
 
-    # Internal method for token obfuscation
-    def _obfuscate_token(self, url):
-        return url.replace(self.token, "***")
+    # --- DOWNLOADS ---
+    def create_download(self, download_constraints):
+        """PUT: Submit a new download."""
+        url = self.base_url + "downloads?" + download_constraints.to_query()
+        print("Downloading... Download URL:", self._obfuscate_token(url))
+        resp = requests.put(url)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_download_status(self, download_id: str = None):
+        """GET: Check status of a download (all or by ID). Returns a DownloadsCollection."""
+        # Build URL correctly
+        if download_id:
+            url = self.base_url + f"downloads?id={urllib.parse.quote(download_id)}"
+        else:
+            url = self.base_url + "downloads"
+
+        print("CHECK Download URL:", self._obfuscate_token(url))
+        resp = requests.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Convert to Download objects
+        if download_id:
+            # data["results"] is always a list, even if only one download
+            downloads_list = [Download(d) for d in data.get("results", [])]
+        else:
+            downloads_list = [Download(d) for d in data.get("results", [])]
+
+        return DownloadsCollection(downloads_list)
+
+    def delete_download(self, download_id: str):
+        """DELETE a download by its ID (safe logging + safe return)."""
+        if not download_id:
+            raise ValueError("download_id is required")
+
+        url = self.base_url + f"downloads?id={urllib.parse.quote(download_id)}"
+        print("DELETE Download URL:", self._obfuscate_token(url))
+
+        resp = requests.delete(url)
+        resp.raise_for_status()
+
+        # Return SAFE (obfuscated) response
+        return {
+            "status": "deleted",
+            "id": Download.obfuscate_download_id(download_id)
+        }
 
 # Client subclasses
 class WHOSClient(DABClient):
