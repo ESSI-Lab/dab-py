@@ -37,7 +37,7 @@ if __name__ == "__main__":
     main()
 ```
 
-## DAB API `om_api: DABClient, WHOSClient, HISCentralClient, Constraints`
+## DAB API `om_api: DABClient, WHOSClient, HISCentralClient, Constraints, DownloadConstraints`
 This notebook and module provide programmatic access to DAB services (currently WHOS and HIS-Central) via the OGC OM-JSON API. The API is documented and available for testing here: https://gs-service-preproduction.geodab.eu/gs-service/om-api/
 - **WHOS:** https://whos.geodab.eu/gs-service/om-api
 - **HIS-Central:** https://his-central.geodab.eu/gs-service/om-api/
