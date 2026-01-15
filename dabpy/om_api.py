@@ -3,6 +3,12 @@ import pandas as pd
 import urllib.parse
 import matplotlib.pyplot as plt
 from datetime import datetime
+from pathlib import Path
+import time
+
+pd.set_option("display.max_columns", None)
+pd.set_option("display.max_colwidth", None)
+pd.set_option("display.expand_frame_repr", False)
 
 # --- Feature and Observation classes ---
 class Feature:
@@ -53,7 +59,8 @@ class Observation:
 
 class Download:
     """Represents a single download record."""
-    def __init__(self, download_json):
+    def __init__(self, download_json, client=None):
+        self.client = client
         self.downloadName = download_json.get("downloadName")
         self.sizeInMB = download_json.get("sizeInMB")
         self.status = download_json.get("status")
@@ -61,38 +68,37 @@ class Download:
         self.locator = download_json.get("locator")
         self.id = download_json.get("id")
 
-    @staticmethod
-    def obfuscate_download_id(download_id: str) -> str:
-        """
-        Obfuscate email part of download ID.
-        example: email@domain:uuid → ***:uuid
-        """
-        if not download_id or ":" not in download_id:
-            return download_id
-        _, uuid_part = download_id.split(":", 1)
-        return f"***:{uuid_part}"
-
     def to_dict(self):
         return {
-            "downloadName": self.downloadName,
-            "sizeInMB": self.sizeInMB,
-            "status": self.status,
-            "timestamp": self.timestamp,
-            "locator": self.locator,
-            "id": self.obfuscate_download_id(self.id)  # call the method here
+            "File Name": self.downloadName,
+            "ID": self.id,
+            "Status": self.status,
+            "Download Link": self.locator,
+            "Size (in MB)": self.sizeInMB,
+            "Timestamp": self.timestamp
         }
 
     def delete(self):
-        if not self.id:
-            raise ValueError("Cannot delete download without id.")
-        url = self.client.base_url + f"downloads?id={urllib.parse.quote(self.id)}"
-        print("DELETE Download URL:", self.client._obfuscate_token(url))  # safe print
-        resp = requests.delete(url)
-        resp.raise_for_status()
-        return resp.json()
+        if not self.client:
+            raise RuntimeError("Download is not attached to a client.")
+        return self.client.delete_download(self.id)
 
     def __repr__(self):
         return f"<Download id={self.id} name={self.downloadName} status={self.status}>"
+
+class DeleteResult:
+    def __init__(self, download_id: str, status: str = "deleted"):
+        self.status = status
+        self.id = download_id
+
+    def to_dict(self):
+        return {
+            "status": self.status,
+            "id": self.id
+        }
+
+    def __repr__(self):
+        return f"ID = {self.id} | status = {self.status}"
 
 # --- Collections with per-page support ---
 class FeaturesCollection:
@@ -362,49 +368,133 @@ class DABClient:
     def create_download(self, download_constraints):
         """PUT: Submit a new download."""
         url = self.base_url + "downloads?" + download_constraints.to_query()
-        print("Downloading... Download URL:", self._obfuscate_token(url))
+
+        # Print the URL (safe)
+        print(f'DOWNLOAD URL: {self._obfuscate_token(url)}')
+
+        # Make the PUT request
         resp = requests.put(url)
         resp.raise_for_status()
-        return resp.json()
 
-    def get_download_status(self, download_id: str = None):
-        """GET: Check status of a download (all or by ID). Returns a DownloadsCollection."""
-        # Build URL correctly
+        # Create Download object from response
+        download_obj = Download(resp.json(), client=self)
+
+        # Now you can access id and status
+        print(f'File "{download_obj.downloadName}" is {download_obj.status}.\nID = "{download_obj.id}"')
+
+        return download_obj
+
+    def get_download_status(self, download_id: str = None, verbose=True):
+        """GET: Check status of a download (all or by ID)."""
         if download_id:
             url = self.base_url + f"downloads?id={urllib.parse.quote(download_id)}"
         else:
             url = self.base_url + "downloads"
 
-        print("CHECK Download URL:", self._obfuscate_token(url))
+        if verbose:
+            print(f'STATUS URL: {self._obfuscate_token(url)}')  # always print by default
+
         resp = requests.get(url)
         resp.raise_for_status()
         data = resp.json()
-
-        # Convert to Download objects
-        if download_id:
-            # data["results"] is always a list, even if only one download
-            downloads_list = [Download(d) for d in data.get("results", [])]
-        else:
-            downloads_list = [Download(d) for d in data.get("results", [])]
-
+        downloads_list = [Download(d, client=self) for d in data.get("results", [])]
         return DownloadsCollection(downloads_list)
 
     def delete_download(self, download_id: str):
-        """DELETE a download by its ID (safe logging + safe return)."""
+        """DELETE a download by its ID."""
         if not download_id:
             raise ValueError("download_id is required")
 
         url = self.base_url + f"downloads?id={urllib.parse.quote(download_id)}"
-        print("DELETE Download URL:", self._obfuscate_token(url))
+        print(f'Deleting ID "{download_id}" ...\nDELETE URL: {self._obfuscate_token(url)}\"')
 
         resp = requests.delete(url)
         resp.raise_for_status()
 
-        # Return SAFE (obfuscated) response
-        return {
-            "status": "deleted",
-            "id": Download.obfuscate_download_id(download_id)
-        }
+        return DeleteResult(download_id)
+
+    def _wait_for_download(self, download_id, poll_interval=5):
+        print("Status: ", end="")
+        previous_status = None
+
+        def normalize(status):
+            return status if status in ["Submitted", "Started", "Completed"] else "Downloading..."
+
+        while True:
+            obj = self.get_download_status(download_id, verbose=False)[0]
+            current = normalize(obj.status)
+
+            if current != previous_status:
+                print(
+                    current if previous_status is None
+                    else f" ⟶ {current}",
+                    end=""
+                )
+                previous_status = current
+
+            if obj.status.lower() == "completed":
+                print(f"\nDownload link: {obj.locator}")
+                return obj
+
+            time.sleep(poll_interval)
+
+    def _save_locator(self, locator, default_name=None):
+        # Ensure .zip extension
+        if default_name and not default_name.endswith(".zip"):
+            default_name += ".zip"
+
+        # Prompt user with default name
+        file_name = input(f"Enter the filename to save as [{default_name}]: ").strip()
+        if not file_name:
+            file_name = default_name
+
+        save_dir = Path.home() / "Downloads"
+        save_path = save_dir / file_name
+
+        # --- Avoid overwriting existing file ---
+        if save_path.exists():
+            base, ext = save_path.stem, save_path.suffix
+            i = 1
+            while save_path.exists():
+                save_path = save_dir / f"{base} ({i}){ext}"
+                i += 1
+
+        # Download the file
+        response = requests.get(locator, stream=True)
+        response.raise_for_status()
+
+        with open(save_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        print(f"Download complete! File saved to: {save_path}")
+        return save_path
+
+    def save_download(self, download_id):
+        # Get the Download object
+        obj = self.get_download_status(download_id, verbose=False)[0]
+
+        if obj.status.lower() != "completed":
+            raise RuntimeError(
+                f'Download "{download_id}" '
+                f'is not completed yet (status: {obj.status})'
+            )
+
+        # Pass obj.downloadName as default_name
+        return self._save_locator(obj.locator, default_name=obj.downloadName)
+
+    def create_save_download(self, download_constraints, poll_interval=2):
+        # --- create ---
+        download = self.create_download(download_constraints)
+
+        # --- wait ---
+        completed = self._wait_for_download(download.id, poll_interval)
+
+        # --- save ---
+        self._save_locator(completed.locator, default_name=download_constraints.asynchDownloadName)
+
+        return download
 
 # Client subclasses
 class WHOSClient(DABClient):
