@@ -1,7 +1,7 @@
 # DAB Pythonic Client (dab-py)
 A Python client for DAB functionalities, including DAB Terms API and WHOS API.
 
-## Installation (1.0.0)
+## Installation (1.1.0)
 Install the core package (includes `pandas` and `matplotlib`):
 ```bash
 pip install --upgrade dab-py
@@ -160,7 +160,7 @@ download_constraints = DownloadConstraints(
 # 01.01: PUT: Create Download
 create_resp = client.create_download(download_constraints)
 # 01.02: Optional: Create and Save Automatically
-create_save_resp = client.create_save_download(download_constraints)
+create_save_resp = client.create_save_download(download_constraints, filename = None)
 
 '''--------- 02 GET: Check Status of Downloaded List ---------'''
 # 02.01: GET: Check Status of Downloaded List
@@ -168,7 +168,7 @@ download_id = None
 status_resp = client.get_download_status(download_id)
 display(status_resp.to_df())
 # 02.02: Optional: Save the Downloaded File Locally
-save_resp = client.save_download(download_id)
+save_resp = client.save_download(download_id, filename = None)
 
 '''--------- 03 DELETE: Delete by ID ---------'''
 # 03.01: DELETE: Delete by ID

@@ -413,7 +413,7 @@ class DABClient:
 
         return DeleteResult(download_id)
 
-    def _wait_for_download(self, download_id, poll_interval=5):
+    def _wait_for_download(self, download_id, poll_interval=3):
         print("Status: ", end="")
         previous_status = None
 
@@ -438,18 +438,14 @@ class DABClient:
 
             time.sleep(poll_interval)
 
-    def _save_locator(self, locator, default_name=None):
-        # Ensure .zip extension
-        if default_name and not default_name.endswith(".zip"):
-            default_name += ".zip"
+    def _save_locator(self, locator, filename=None, save_dir=None):
+        save_dir = Path(save_dir) if save_dir else Path.home() / "Downloads"
 
-        # Prompt user with default name
-        file_name = input(f"Enter the filename to save as [{default_name}]: ").strip()
-        if not file_name:
-            file_name = default_name
+        if not filename:
+            # derive from URL
+            filename = Path(urllib.parse.urlparse(locator).path).name
 
-        save_dir = Path.home() / "Downloads"
-        save_path = save_dir / file_name
+        save_path = save_dir / filename
 
         # --- Avoid overwriting existing file ---
         if save_path.exists():
@@ -459,7 +455,6 @@ class DABClient:
                 save_path = save_dir / f"{base} ({i}){ext}"
                 i += 1
 
-        # Download the file
         response = requests.get(locator, stream=True)
         response.raise_for_status()
 
@@ -468,33 +463,33 @@ class DABClient:
                 if chunk:
                     f.write(chunk)
 
-        print(f"Download complete! File saved to: {save_path}")
+        print(f"Download complete!\nFile saved to: {save_path}")
         return save_path
 
-    def save_download(self, download_id):
-        # Get the Download object
+    def save_download(self, download_id, filename=None, save_dir=None):
         obj = self.get_download_status(download_id, verbose=False)[0]
 
         if obj.status.lower() != "completed":
             raise RuntimeError(
-                f'Download "{download_id}" '
-                f'is not completed yet (status: {obj.status})'
+                f'Download "{download_id}" is not completed yet (status: {obj.status})'
             )
 
-        # Pass obj.downloadName as default_name
-        return self._save_locator(obj.locator, default_name=obj.downloadName)
+        return self._save_locator(
+            obj.locator,
+            filename=filename,
+            save_dir=save_dir
+        )
 
-    def create_save_download(self, download_constraints, poll_interval=2):
-        # --- create ---
+    def create_save_download(self, download_constraints, poll_interval=5,
+                             filename=None, save_dir=None):
         download = self.create_download(download_constraints)
-
-        # --- wait ---
         completed = self._wait_for_download(download.id, poll_interval)
 
-        # --- save ---
-        self._save_locator(completed.locator, default_name=download_constraints.asynchDownloadName)
-
-        return download
+        return self.save_download(
+            completed.id,
+            filename=filename,
+            save_dir=save_dir
+        )
 
 # Client subclasses
 class WHOSClient(DABClient):
